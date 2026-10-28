@@ -2,14 +2,14 @@
 
 This project demonstrates how to implement Jev-as-a-Judge evaluation on the LangSmith platform.
 
-It runs Kalygo agents that share a configuration but use different LLMs against the same LangSmith dataset, has Jev grade each answer against the reference answer, and records one LangSmith experiment per agent so you can compare them side by side.
+It runs Command Labs agents that share a configuration but use different LLMs against the same LangSmith dataset, has Jev grade each answer against the reference answer, and records one LangSmith experiment per agent so you can compare them side by side.
 
 ## Project structure
 
 - `scripts/upload_langsmith_dataset.py` - upload a Q&A CSV to LangSmith as a dataset
 - `scripts/run_llm_as_a_judge.py` - run the agents and grade their answers with Jev
 - `llm_judge/config.py` - CLI + environment configuration
-- `clients/kalygo.py` - Kalygo API call + stream parsing
+- `clients/cmdlabs.py` - Command Labs API call + stream parsing
 - `llm_judge/jev_judge.py` - the Jev judge and its scoring rubric
 - `llm_judge/orchestrator.py` - one LangSmith experiment per agent
 
@@ -21,7 +21,7 @@ It runs Kalygo agents that share a configuration but use different LLMs against 
 uv sync
 ```
 
-2. Copy `.env.example` to `.env` and fill in `LANGSMITH_API_KEY`, `KALYGO_API_KEY` and `TYPESAFE_API_KEY` (Jev).
+2. Copy `.env.example` to `.env` and fill in `LANGSMITH_API_KEY`, `CMDLABS_API_KEY` and `TYPESAFE_API_KEY` (Jev).
 
 ## Run
 

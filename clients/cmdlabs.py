@@ -1,4 +1,4 @@
-"""Kalygo completion API client and stream parser."""
+"""Command Labs completion API client and stream parser."""
 
 import json
 from typing import Any
@@ -51,17 +51,17 @@ def _iter_json_objects(payload_text: str) -> list[dict[str, Any]]:
     return objects
 
 
-def call_kalygo_completion(
+def call_cmdlabs_completion(
     *,
     api_url: str,
     api_key: str | None,
     agent_id: str,
     session_id: str,
     prompt: str,
-    kalygo_api_timeout_seconds: int = 120,
-    kalygo_api_retries: int = 2,
+    cmdlabs_api_timeout_seconds: int = 120,
+    cmdlabs_api_retries: int = 2,
 ) -> str:
-    url = f"{api_url.rstrip('/')}/api/agents/{quote(agent_id, safe='')}/completion"
+    url = f"{api_url.rstrip('/')}/api/agents/{quote(agent_id, safe='')}/stream"
     headers = {
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
@@ -69,7 +69,7 @@ def call_kalygo_completion(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
-    max_attempts = max(1, kalygo_api_retries + 1)
+    max_attempts = max(1, cmdlabs_api_retries + 1)
     last_exc: Exception | None = None
 
     for attempt in range(1, max_attempts + 1):
@@ -79,12 +79,12 @@ def call_kalygo_completion(
                 headers=headers,
                 json={"sessionId": session_id, "prompt": prompt},
                 stream=True,
-                timeout=kalygo_api_timeout_seconds,
+                timeout=cmdlabs_api_timeout_seconds,
             )
 
             if not response.ok:
                 details = response.text
-                raise RuntimeError(f"Kalygo API error {response.status_code}: {details}")
+                raise RuntimeError(f"Command Labs API error {response.status_code}: {details}")
 
             stream_chunks: list[str] = []
             final_answer: str | None = None
@@ -106,7 +106,7 @@ def call_kalygo_completion(
                             error_message = error_data.get("message") or error_data.get("error")
                         else:
                             error_message = parsed.get("message") or parsed.get("error") or error_data
-                        raise RuntimeError(f"Kalygo stream error: {error_message or 'unknown error'}")
+                        raise RuntimeError(f"Command Labs stream error: {error_message or 'unknown error'}")
 
                     if event_name == "on_chain_end":
                         chain_data = parsed.get("data")
@@ -117,8 +117,8 @@ def call_kalygo_completion(
                         continue
 
                     if event_name == "on_chat_model_stream":
-                        stream_piece = parsed.get("data")
-                        if isinstance(stream_piece, str) and stream_piece:
+                        stream_piece = _extract_text_from_payload(parsed.get("data"))
+                        if stream_piece:
                             stream_chunks.append(stream_piece)
                         continue
 
@@ -126,7 +126,7 @@ def call_kalygo_completion(
                     return None
 
                 if event_hint == "error":
-                    raise RuntimeError(f"Kalygo stream error: {payload_text}")
+                    raise RuntimeError(f"Command Labs stream error: {payload_text}")
                 return None
 
             for line in response.iter_lines(decode_unicode=True):
@@ -158,19 +158,19 @@ def call_kalygo_completion(
             break
 
     raise RuntimeError(
-        "Kalygo completion request failed after "
+        "Command Labs completion request failed after "
         f"{max_attempts} attempt(s) due to timeout/connection errors at {url}: {last_exc}"
     )
 
 
-def fetch_kalygo_agent_config(
+def fetch_cmdlabs_agent_config(
     *,
     api_url: str,
     api_key: str | None,
     agent_id: str,
-    kalygo_api_timeout_seconds: int = 120,
+    cmdlabs_api_timeout_seconds: int = 120,
 ) -> dict[str, Any]:
-    """Fetch agent metadata/config from Kalygo API."""
+    """Fetch agent metadata/config from Command Labs API."""
     url = f"{api_url.rstrip('/')}/api/agents/{quote(agent_id, safe='')}"
     headers = {"Accept": "application/json"}
     if api_key:
@@ -179,7 +179,7 @@ def fetch_kalygo_agent_config(
     response = requests.get(
         url,
         headers=headers,
-        timeout=kalygo_api_timeout_seconds,
+        timeout=cmdlabs_api_timeout_seconds,
     )
     response.raise_for_status()
     payload = response.json()

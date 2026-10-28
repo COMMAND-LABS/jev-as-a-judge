@@ -9,13 +9,13 @@ from dotenv import load_dotenv
 def load_config() -> argparse.Namespace:
     load_dotenv()
     parser = argparse.ArgumentParser(
-        description="Run Kalygo agents against a LangSmith dataset and grade their answers with Jev."
+        description="Run Command Labs agents against a LangSmith dataset and grade their answers with Jev."
     )
     parser.add_argument(
         "--agent-id",
         dest="agent_ids",
-        default=os.getenv("KALYGO_AGENT_ID"),
-        help="Kalygo agent ID, or a comma-separated list (e.g. 39,40) to run one experiment per agent",
+        default=os.getenv("CMDLABS_AGENT_ID"),
+        help="Command Labs agent ID, or a comma-separated list (e.g. 39,40) to run one experiment per agent",
     )
     parser.add_argument(
         "--dataset-name",
@@ -24,7 +24,7 @@ def load_config() -> argparse.Namespace:
     )
     parser.add_argument(
         "--experiment-name",
-        default="kalygo",
+        default="cmdlabs",
         help="LangSmith experiment name; with several agents, '-agent-<id>' is appended for each one",
     )
     parser.add_argument(
@@ -34,21 +34,21 @@ def load_config() -> argparse.Namespace:
         help="Optional cap on number of dataset examples to evaluate",
     )
     parser.add_argument(
-        "--kalygo-completion-api-url",
-        default=os.getenv("KALYGO_COMPLETION_API_URL", "https://completion.kalygo.io"),
-        help="Base URL for Kalygo API (completion + agent config)",
+        "--cmdlabs-api-url",
+        default=os.getenv("CMDLABS_API_URL", "https://api.cmdlabs.io"),
+        help="Base URL for Command Labs API (completion + agent config)",
     )
     parser.add_argument(
-        "--kalygo-api-timeout-seconds",
+        "--cmdlabs-api-timeout-seconds",
         type=int,
-        default=int(os.getenv("KALYGO_API_TIMEOUT_SECONDS", "120")),
-        help="HTTP timeout for each Kalygo API completion request",
+        default=int(os.getenv("CMDLABS_API_TIMEOUT_SECONDS", "120")),
+        help="HTTP timeout for each Command Labs API completion request",
     )
     parser.add_argument(
-        "--kalygo-api-retries",
+        "--cmdlabs-api-retries",
         type=int,
-        default=int(os.getenv("KALYGO_API_RETRIES", "2")),
-        help="Number of retries for transient Kalygo streaming timeouts/connection errors",
+        default=int(os.getenv("CMDLABS_API_RETRIES", "2")),
+        help="Number of retries for transient Command Labs streaming timeouts/connection errors",
     )
     parser.add_argument(
         "--jev-judge-model",
