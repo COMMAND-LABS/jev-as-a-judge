@@ -9,7 +9,7 @@ It runs Kalygo agents that share a configuration but use different LLMs against 
 - `scripts/upload_langsmith_dataset.py` - upload a Q&A CSV to LangSmith as a dataset
 - `scripts/run_llm_as_a_judge.py` - run the agents and grade their answers with Jev
 - `llm_judge/config.py` - CLI + environment configuration
-- `llm_judge/kalygo_client.py` - Kalygo API call + stream parsing
+- `clients/kalygo.py` - Kalygo API call + stream parsing
 - `llm_judge/jev_judge.py` - the Jev judge and its scoring rubric
 - `llm_judge/orchestrator.py` - one LangSmith experiment per agent
 

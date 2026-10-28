@@ -10,7 +10,7 @@ from langsmith.evaluation import evaluate
 
 from llm_judge.config import load_config
 from llm_judge.jev_judge import build_jev_judge_evaluator
-from llm_judge.kalygo_client import call_kalygo_completion, fetch_kalygo_agent_config
+from clients.kalygo import call_kalygo_completion, fetch_kalygo_agent_config
 
 
 def _parse_agent_ids(raw_agent_ids: str | None) -> list[str]:
