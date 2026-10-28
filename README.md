@@ -9,9 +9,9 @@ It runs Command Labs agents that share a configuration but use different LLMs ag
 - `scripts/upload_langsmith_dataset.py` - upload a Q&A CSV to LangSmith as a dataset
 - `scripts/run_llm_as_a_judge.py` - run the agents and grade their answers with Jev
 - `llm_judge/config.py` - CLI + environment configuration
-- `clients/cmdlabs.py` - Command Labs API call + stream parsing
 - `llm_judge/jev_judge.py` - the Jev judge and its scoring rubric
-- `llm_judge/orchestrator.py` - one LangSmith experiment per agent
+- `llm_judge/orchestrator.py` - one LangSmith experiment per agent, run in parallel
+- `clients/cmdlabs.py` - Command Labs API client (agent answers + agent config)
 
 ## Setup
 
@@ -21,11 +21,11 @@ It runs Command Labs agents that share a configuration but use different LLMs ag
 uv sync
 ```
 
-2. Copy `.env.example` to `.env` and fill in `LANGSMITH_API_KEY`, `CMDLABS_API_KEY` and `TYPESAFE_API_KEY` (Jev).
+2. Copy `.env.example` to `.env` and fill in `LANGSMITH_API_KEY`, `CMDLABS_API_KEY`, `TYPESAFE_API_KEY` (Jev) and `CMDLABS_AGENT_ID` (the agents to compare, e.g. `54,55`).
 
 ## Run
 
-1. Upload the dataset. The CSV needs a header row with columns `q` (question) and `a` (reference answer):
+1. Upload the dataset. The CSV needs a header row with columns `q` (question) and `a` (reference answer). The `data/` folder is git-ignored, so put your CSV there yourself:
 
 ```bash
 uv run scripts/upload_langsmith_dataset.py \
@@ -35,18 +35,30 @@ uv run scripts/upload_langsmith_dataset.py \
 
 Add `--replace-existing` to replace the dataset's examples after editing the CSV.
 
-2. Run the agents (one experiment per agent ID):
+2. Run the agents (one experiment per agent in `CMDLABS_AGENT_ID`):
 
 ```bash
 uv run scripts/run_llm_as_a_judge.py \
   --experiment-name ai-masterclass \
-  --dataset-name ai-masterclass-dataset \
-  --agent-id 39,40
+  --dataset-name ai-masterclass-dataset
 ```
 
-Add `--max-examples 5` for a quick test run. Every agent gets the same examples.
+- `--max-examples 2` - quick test run on the first examples. Every agent gets the same examples.
+- `--agent-id 54,55` - run different agents than the ones in `.env`.
+- `--max-concurrency 5` - examples evaluated at the same time per agent (default 5, or `MAX_CONCURRENCY` in `.env`). The agents also run in parallel; lower this if you see rate-limit errors.
+- `--run-group <id>` - choose the run group ID yourself, e.g. to add a re-run of one agent to an existing group.
 
-3. In LangSmith, open the dataset, select the experiments and click Compare.
+3. In LangSmith, open the dataset, select the experiments from the same run group and click Compare.
+
+## What you see in LangSmith
+
+Every run gets a run group ID (e.g. `20261028-1532-a1b2`), so experiment names look like:
+
+```
+ai-masterclass-20261028-1532-a1b2-agent-54-gpt-5.4-<langsmith suffix>
+```
+
+Each experiment's description shows the agent's name and model (e.g. `AMA (w/ GPT 5.4): openai/gpt-5.4`), and its metadata has `run_group`, `agent_id`, `agent_name`, `model_provider`, `model` and the agent's full `agent_config` (tools, knowledge base, system prompt).
 
 ## How Jev scores answers
 

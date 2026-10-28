@@ -25,7 +25,18 @@ def load_config() -> argparse.Namespace:
     parser.add_argument(
         "--experiment-name",
         default="cmdlabs",
-        help="LangSmith experiment name; with several agents, '-agent-<id>' is appended for each one",
+        help="Start of the LangSmith experiment names; the run group, agent ID and model are appended",
+    )
+    parser.add_argument(
+        "--run-group",
+        default=None,
+        help="ID shared by the experiments of one run (default: generated from the current time)",
+    )
+    parser.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=int(os.getenv("MAX_CONCURRENCY", "5")),
+        help="Examples evaluated at the same time per agent (agents also run in parallel)",
     )
     parser.add_argument(
         "--max-examples",

@@ -1,8 +1,9 @@
 """Run each Command Labs agent against a LangSmith dataset and grade the answers with Jev."""
 
-import json
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from typing import Any
 
 from langsmith import Client
@@ -35,6 +36,17 @@ def _fetch_agent_config(*, args: Any, api_key: str | None, agent_id: str) -> dic
         return None
 
 
+def _describe_agent(agent_config: dict[str, Any] | None) -> dict[str, Any]:
+    """Pull the agent name and model out of its config, for easy reading in LangSmith."""
+    agent_config = agent_config or {}
+    model = ((agent_config.get("config") or {}).get("data") or {}).get("model") or {}
+    return {
+        "agent_name": agent_config.get("name"),
+        "model_provider": model.get("provider"),
+        "model": model.get("model"),
+    }
+
+
 def main() -> None:
     args = load_config()
 
@@ -47,6 +59,8 @@ def main() -> None:
     if not jev_api_key:
         raise ValueError("Missing TYPESAFE_API_KEY in .env (required for the Jev judge).")
     cmdlabs_api_key = os.getenv("CMDLABS_API_KEY")
+    # Shared by every experiment in this run, so the group can be found in LangSmith.
+    run_group = args.run_group or f"{datetime.now():%Y%m%d-%H%M}-{uuid.uuid4().hex[:4]}"
 
     # Fetch the examples once so every agent is evaluated on exactly the same examples.
     client = Client()
@@ -65,17 +79,16 @@ def main() -> None:
     )
 
     print(f"Dataset {args.dataset_name}: {len(examples)} examples per agent")
-    print(f"Agents: {', '.join(agent_ids)} | Judge: {args.jev_judge_model}")
+    print(f"Agents: {', '.join(agent_ids)} | Judge: {args.jev_judge_model} | Run group: {run_group}")
+    print(f"Running agents in parallel, {args.max_concurrency} examples at a time per agent")
 
     # One experiment per agent: same examples, same judge, different agent.
-    experiments: list[tuple[str, Any]] = []
-    for agent_id in agent_ids:
+    def run_agent(agent_id: str) -> Any:
         # Record each agent's config so the experiment shows what it ran against.
         agent_config = _fetch_agent_config(args=args, api_key=cmdlabs_api_key, agent_id=agent_id)
-        if agent_config is not None:
-            print(f"\nAgent {agent_id} config:\n{json.dumps(agent_config, indent=2, sort_keys=True)}")
+        agent = _describe_agent(agent_config)
 
-        def target(inputs: dict[str, str], agent_id: str = agent_id) -> dict[str, str]:
+        def target(inputs: dict[str, str]) -> dict[str, str]:
             answer = call_cmdlabs_completion(
                 api_url=args.cmdlabs_api_url,
                 api_key=cmdlabs_api_key,
@@ -87,26 +100,34 @@ def main() -> None:
             )
             return {"answer": answer}
 
-        experiment_name = args.experiment_name if len(agent_ids) == 1 else f"{args.experiment_name}-agent-{agent_id}"
-        print(f"\nRunning LangSmith evaluation for agent {agent_id} ({experiment_name})...")
-        results = evaluate(
+        experiment_name = f"{args.experiment_name}-{run_group}-agent-{agent_id}"
+        if agent["model"]:
+            experiment_name += f"-{agent['model']}"
+        label = f"agent {agent_id} ({agent['agent_name']})" if agent["agent_name"] else f"agent {agent_id}"
+        print(f"\nRunning LangSmith evaluation for {label}: {experiment_name}...")
+        return evaluate(
             target,
             data=examples,
             evaluators=[jev_judge],
             experiment_prefix=experiment_name,
+            description=f"{agent['agent_name']}: {agent['model_provider']}/{agent['model']}" if agent["model"] else None,
+            max_concurrency=args.max_concurrency,
             client=client,
             metadata={
+                "run_group": run_group,
                 "agent_id": agent_id,
-                "compared_agent_ids": agent_ids,
+                **agent,
                 "agent_config": agent_config,
                 "dataset_name": args.dataset_name,
                 "jev_judge_model": args.jev_judge_model,
             },
         )
-        experiments.append((agent_id, results))
 
-    print("\nEvaluation finished.")
+    with ThreadPoolExecutor(max_workers=len(agent_ids)) as executor:
+        experiments = list(zip(agent_ids, executor.map(run_agent, agent_ids)))
+
+    print(f"\nEvaluation finished. Run group: {run_group}")
     for agent_id, results in experiments:
         print(f"Agent {agent_id}: {getattr(results, 'experiment_url', None) or getattr(results, 'experiment_name', '')}")
     if len(experiments) > 1:
-        print(f"Compare them in LangSmith: open dataset {args.dataset_name}, select these experiments, then Compare.")
+        print(f"Compare them in LangSmith: open dataset {args.dataset_name}, select the experiments with run_group {run_group}, then Compare.")
