@@ -5,87 +5,60 @@ import os
 
 from dotenv import load_dotenv
 
-from llm_judge.metrics import AVAILABLE_METRICS, DEFAULT_EVALUATORS
 
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate a Kalygo agent against a Q&A CSV with LangSmith.")
-    parser.add_argument(
-        "--dataset-file",
-        "--csv-path",
-        dest="dataset_file",
-        default=os.getenv("DATASET_FILE", "data/ai_school_kb_3-12-2026.csv"),
-        help=(
-            "Path to the local Q&A CSV file. "
-            "Use --dataset-name for the LangSmith dataset identifier."
-        ),
-    )
-    parser.add_argument("--agent-id", default=None, help="Kalygo agent ID")
-    parser.add_argument(
-        "--kalygo-completion-api-url",
-        "--api-url",
-        dest="kalygo_completion_api_url",
-        default=os.getenv("KALYGO_COMPLETION_API_URL", "https://completion.kalygo.io"),
-        help="Base URL for Kalygo API (completion + agent config)",
+def load_config() -> argparse.Namespace:
+    load_dotenv()
+    parser = argparse.ArgumentParser(
+        description="Run Kalygo agents against a LangSmith dataset and grade their answers with Jev."
     )
     parser.add_argument(
-        "--experiment-name",
-        default=None,
-        help="Experiment name for this run. If omitted, --experiment-prefix is used.",
-    )
-    parser.add_argument(
-        "--experiment-prefix",
-        default="kalygo-default-prefix",
-        help="Prefix for LangSmith experiment name",
+        "--agent-id",
+        dest="agent_ids",
+        default=os.getenv("KALYGO_AGENT_ID"),
+        help="Kalygo agent ID, or a comma-separated list (e.g. 39,40) to run one experiment per agent",
     )
     parser.add_argument(
         "--dataset-name",
-        default=os.getenv("LANGSMITH_DATASET_NAME"),
-        help="LangSmith dataset name. If omitted, a timestamped dataset name is created.",
+        required=True,
+        help="Existing LangSmith dataset to evaluate on (upload it first with scripts/upload_langsmith_dataset.py)",
+    )
+    parser.add_argument(
+        "--experiment-name",
+        default="kalygo",
+        help="LangSmith experiment name; with several agents, '-agent-<id>' is appended for each one",
     )
     parser.add_argument(
         "--max-examples",
         type=int,
         default=None,
-        help="Optional cap on number of CSV examples to evaluate",
+        help="Optional cap on number of dataset examples to evaluate",
+    )
+    parser.add_argument(
+        "--kalygo-completion-api-url",
+        default=os.getenv("KALYGO_COMPLETION_API_URL", "https://completion.kalygo.io"),
+        help="Base URL for Kalygo API (completion + agent config)",
     )
     parser.add_argument(
         "--kalygo-api-timeout-seconds",
-        "--timeout-seconds",
-        dest="kalygo_api_timeout_seconds",
         type=int,
-        default=int(os.getenv("KALYGO_API_TIMEOUT_SECONDS", os.getenv("KALYGO_TIMEOUT_SECONDS", "120"))),
+        default=int(os.getenv("KALYGO_API_TIMEOUT_SECONDS", "120")),
         help="HTTP timeout for each Kalygo API completion request",
     )
     parser.add_argument(
         "--kalygo-api-retries",
-        dest="kalygo_api_retries",
         type=int,
         default=int(os.getenv("KALYGO_API_RETRIES", "2")),
         help="Number of retries for transient Kalygo streaming timeouts/connection errors",
     )
     parser.add_argument(
-        "--judge-model",
-        default=os.getenv("JUDGE_MODEL", "gpt-4o-mini"),
-        help="Model used by the LLM judge evaluator",
-    )
-    parser.add_argument(
-        "--evaluators",
-        default=os.getenv("EVALUATORS", DEFAULT_EVALUATORS),
-        help=(
-            "Comma-separated evaluators to run. "
-            f"Available: {', '.join(AVAILABLE_METRICS)}"
-        ),
+        "--jev-judge-model",
+        default=os.getenv("JEV_JUDGE_MODEL", "jev-latest"),
+        help="Jev model used to grade answers",
     )
     parser.add_argument(
         "--judge-timeout-seconds",
         type=int,
         default=int(os.getenv("JUDGE_TIMEOUT_SECONDS", "60")),
-        help="HTTP timeout for judge model API calls",
+        help="HTTP timeout for each Jev API call",
     )
     return parser.parse_args()
-
-
-def load_config() -> argparse.Namespace:
-    load_dotenv()
-    return parse_args()

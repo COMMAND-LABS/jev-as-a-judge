@@ -1,59 +1,57 @@
 # TLDR
 
-This project demonstrates how to implement LLM-as-a-Judge evaluation on the LangSmith platform.
+This project demonstrates how to implement Jev-as-a-Judge evaluation on the LangSmith platform.
+
+It runs Kalygo agents that share a configuration but use different LLMs against the same LangSmith dataset, has Jev grade each answer against the reference answer, and records one LangSmith experiment per agent so you can compare them side by side.
 
 ## Project structure
 
-Core logic is split into small modules under `llm_judge/`:
-
+- `scripts/upload_langsmith_dataset.py` - upload a Q&A CSV to LangSmith as a dataset
+- `scripts/run_llm_as_a_judge.py` - run the agents and grade their answers with Jev
 - `llm_judge/config.py` - CLI + environment configuration
-- `llm_judge/kalygo_client.py` - API call + stream parsing
-- `llm_judge/dataset.py` - CSV loading + LangSmith dataset sync
-- `llm_judge/evaluator_selection.py` - evaluator selection/validation
-- `llm_judge/metrics.py` - metric definitions and LLM-judge evaluator
-- `llm_judge/orchestrator.py` - top-level run orchestration
-
-`run_llm_as_a_judge.py` is now a thin entrypoint that calls the orchestrator.
+- `llm_judge/kalygo_client.py` - Kalygo API call + stream parsing
+- `llm_judge/jev_judge.py` - the Jev judge and its scoring rubric
+- `llm_judge/orchestrator.py` - one LangSmith experiment per agent
 
 ## Setup
 
-1. Create and activate a virtual environment.
+1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then install dependencies (this creates `.venv` automatically):
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+uv sync
 ```
 
-2. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-3. Fill in `.env` values:
-   - This is going to be specific to exactly what you are testing
-   - peep the `.env.example` file for reference
-   - Set `JUDGE_MODEL` to choose which LLM acts as the judge (for example `gpt-4o-mini` or `gpt-4.1-mini`)
-   - Set `EVALUATORS` to control which metrics are active
-   - Set `KALYGO_COMPLETION_API_URL` to the Kalygo API base (completion + agent config, e.g. `https://completion.kalygo.io`)
-   - Set `KALYGO_API_KEY` for authenticated completion and agent-config calls
-   - Set `KALYGO_API_TIMEOUT_SECONDS` for Kalygo completion request timeout
-   - Optional: set `KALYGO_API_RETRIES` for transient timeout/connection retries
+2. Copy `.env.example` to `.env` and fill in `LANGSMITH_API_KEY`, `KALYGO_API_KEY` and `TYPESAFE_API_KEY` (Jev).
 
 ## Run
 
-See the `README.example_use_case.md` and `README.basic_concepts.md` files
+1. Upload the dataset. The CSV needs a header row with columns `q` (question) and `a` (reference answer):
 
-## What it evaluates
+```bash
+uv run scripts/upload_langsmith_dataset.py \
+  --dataset-file data/ai-masterclass-dataset.csv \
+  --dataset-name ai-masterclass-dataset
+```
 
-- Metric definitions live in `llm_judge/metrics.py` for easy review.
-- Each metric includes inline documentation explaining:
-  - what the metric measures
-  - score interpretation
-  - where it is useful
-- Included metrics:
-  - `exact_match`
-  - `token_f1`
-  - `contains_reference`
-  - `llm_judge_score` (enabled when `OPENAI_API_KEY` is set)
-- `--evaluators` / `EVALUATORS` lets you choose any subset of those metrics.
+Add `--replace-existing` to replace the dataset's examples after editing the CSV.
+
+2. Run the agents (one experiment per agent ID):
+
+```bash
+uv run scripts/run_llm_as_a_judge.py \
+  --experiment-name ai-masterclass \
+  --dataset-name ai-masterclass-dataset \
+  --agent-id 39,40
+```
+
+Add `--max-examples 5` for a quick test run. Every agent gets the same examples.
+
+3. In LangSmith, open the dataset, select the experiments and click Compare.
+
+## How Jev scores answers
+
+Jev compares each agent answer with the reference answer and scores it from 0 to 4:
+
+0 = Poor, 1 = Bad, but not the worst, 2 = Somewhat correct, 3 = Okay, 4 = Great.
+
+The score (`jev_judge_score`) is probability-weighted, so it can fall between levels (e.g. 3.6). The LangSmith comment shows Jev's confidence and the probability of each level.

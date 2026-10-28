@@ -1,10 +1,23 @@
 import argparse
+import csv
 
 from dotenv import load_dotenv
 from langsmith import Client
 from langsmith import schemas as ls_schemas
 
-from llm_judge.dataset import load_examples
+def load_examples(csv_path: str, max_examples: int | None = None) -> list[dict[str, dict[str, str]]]:
+    """Read a CSV with columns q and a into LangSmith examples, skipping rows missing either."""
+    examples: list[dict[str, dict[str, str]]] = []
+    with open(csv_path, newline="", encoding="utf-8") as csvfile:
+        for row in csv.DictReader(csvfile):
+            question = (row.get("q") or "").strip()
+            answer = (row.get("a") or "").strip()
+            if not question or not answer:
+                continue
+            examples.append({"inputs": {"question": question}, "outputs": {"answer": answer}})
+            if max_examples is not None and len(examples) >= max_examples:
+                break
+    return examples
 
 
 def parse_args() -> argparse.Namespace:
